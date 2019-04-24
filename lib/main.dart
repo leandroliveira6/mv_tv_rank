@@ -1,111 +1,169 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:http/http.dart';
+
+final urlBase = 'https://api.themoviedb.org/3/';
+final urlImageBase = 'https://image.tmdb.org/t/p/';
+final parametroIdioma = 'language=pt-BR&';
+final parametroChave = 'api_key=3a06110bb4560d0e68265abfb5c87e5b&';
+final urlSubs = {
+  'filmes': 'trending/movie/week?',
+  'series': 'trending/tv/week?',
+  'pessoas': 'trending/person/week?',
+};
 
 void main() => runApp(MyApp());
 
 class MyApp extends StatelessWidget {
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
+      title: 'Movie & TV Rank',
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // Try running your application with "flutter run". You'll see the
-        // application has a blue toolbar. Then, without quitting the app, try
-        // changing the primarySwatch below to Colors.green and then invoke
-        // "hot reload" (press "r" in the console where you ran "flutter run",
-        // or simply save your changes to "hot reload" in a Flutter IDE).
-        // Notice that the counter didn't reset back to zero; the application
-        // is not restarted.
         primarySwatch: Colors.blue,
       ),
-      home: MyHomePage(title: 'Flutter Demo Home Page'),
+      initialRoute: '/',
+      routes: {
+        '/': (context) => PaginaInicial(),
+      },
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  MyHomePage({Key key, this.title}) : super(key: key);
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
-
-  @override
-  _MyHomePageState createState() => _MyHomePageState();
-}
-
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
-
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
-  }
-
+class PaginaInicial extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
     return Scaffold(
       appBar: AppBar(
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
+        title: Text('Os mais populares'),
       ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
+      body: Container(
         child: Column(
-          // Column is also layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Invoke "debug painting" (press "p" in the console, choose the
-          // "Toggle Debug Paint" action from the Flutter Inspector in Android
-          // Studio, or the "Toggle Debug Paint" command in Visual Studio Code)
-          // to see the wireframe for each widget.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Text(
-              'You have pushed the button this many times:',
-            ),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.display1,
-            ),
+            ContainerLista('Filmes', urlSubs['filmes']),
+            ContainerLista('Series', urlSubs['series']),
+            ContainerLista('Personalidades', urlSubs['pessoas'])
           ],
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
+        onPressed: () {},
+        tooltip: 'Em construcao',
         child: Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
+      ),
+    );
+  }
+}
+
+class ContainerLista extends StatefulWidget {
+  String _titulo;
+  String _urlSub;
+  bool _ehMisturada;
+
+  ContainerLista(String titulo, String urlSub, {bool ehMisturada}) {
+    this._titulo = titulo;
+    this._urlSub = urlSub;
+    this._ehMisturada = ehMisturada ?? false;
+  }
+
+  @override
+  _ContainerListaState createState() => _ContainerListaState();
+}
+
+class Cartaz {
+  String id;
+  String title;
+  String release_date;
+
+  Cartaz(String id, String title, String release_date) {
+    this.id = id;
+    this.title = title;
+    this.release_date = release_date;
+  }
+}
+
+class _ContainerListaState extends State<ContainerLista> {
+  List<dynamic> lista = List();
+  bool estaCarregando = true;
+
+  Future _obterListaOnline() async {
+    Response response =
+        await get(urlBase + widget._urlSub + parametroChave + parametroIdioma);
+    print(response.statusCode);
+    if (response.statusCode == 200) {
+      lista = json.decode(response.body)['results'];
+    } else {
+      throw Exception('Falha ao obter a lista');
+    }
+
+    setState(() {
+      estaCarregando = false;
+    });
+    print(lista);
+  }
+
+  @override
+  void initState() {
+    _obterListaOnline();
+    super.initState();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 200,
+      child: Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(widget._titulo,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  )),
+              estaCarregando
+                  ? Center(child: CircularProgressIndicator())
+                  : Expanded(
+                      child: ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: lista.length,
+                          itemBuilder: (BuildContext context, int index) {
+                            return Padding(
+                              padding: const EdgeInsets.all(4.0),
+                              child: SizedBox(
+                                width: 200,
+                                child: Stack(
+                                  fit: StackFit.expand,
+                                  children: <Widget>[
+                                    Image.network(
+                                        urlImageBase +
+                                            'w500' +
+                                            (lista[index]['backdrop_path'] ??
+                                                lista[index]['profile_path']),
+                                        fit: BoxFit.cover),
+                                    Container(
+                                      alignment: Alignment.bottomLeft,
+                                      child: Container(
+                                        padding: EdgeInsets.all(8),
+                                        color: Colors.black.withOpacity(0.4),
+                                        child: Text(
+                                            lista[index]['title'] ??
+                                                lista[index]['name'],
+                                            style: TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.bold)),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }),
+                    )
+            ]),
+      ),
     );
   }
 }
