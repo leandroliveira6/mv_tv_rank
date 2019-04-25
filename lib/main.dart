@@ -241,6 +241,7 @@ class PaginaDetalhes extends StatefulWidget {
 }
 
 class _PaginaDetalhesState extends State<PaginaDetalhes> {
+  Detalhes objDetalhes;
   Map<String, dynamic> detalhes = Map();
   Map<String, String> camposDetalhes = {
     'title': 'Título',
@@ -269,6 +270,7 @@ class _PaginaDetalhesState extends State<PaginaDetalhes> {
     Response response = await get(url + subUrl + chave + idioma);
 
     if (response.statusCode == 200) {
+      objDetalhes = Detalhes.fromJson(json.decode(response.body));
       detalhes = json.decode(response.body);
     } else {
       throw Exception('Falha ao obter a lista');
@@ -300,29 +302,7 @@ class _PaginaDetalhesState extends State<PaginaDetalhes> {
                       Expanded(
                         child: Padding(
                           padding: EdgeInsets.all(8.0),
-                          child: Column(
-                              children:
-                                  List.generate(camposDetalhes.length, (index) {
-                            String chave = camposDetalhes.keys.elementAt(index);
-                            String valor = camposDetalhes[chave];
-                            print(valor);
-                            if (detalhes[chave] != null){
-                              return Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: <Widget>[
-                                  Text(
-                                    valor,
-                                    style:
-                                        TextStyle(fontWeight: FontWeight.bold),
-                                  ),
-                                  Flexible(
-                                      child: Text(detalhes[chave].toString()))
-                                ],
-                              );
-                            }
-                            return Text('');
-                          })),
+                          child: Column(children: objDetalhes.obterDetalhes()),
                         ),
                       ),
                     ],
@@ -338,6 +318,45 @@ class _PaginaDetalhesState extends State<PaginaDetalhes> {
                         obterTipoItemLista('detalhes', widget.tipo),
                         id: detalhes['id'].toString()))
               ]));
+  }
+}
+
+class Detalhes {
+  List<List> linhas = List();
+
+  Detalhes({this.linhas});
+
+  factory Detalhes.fromJson(Map<String, dynamic> parsedJson) {
+    List<List> lista = [
+      parsedJson['title'] != null
+          ? ['Titulo', parsedJson['title']]
+          : ['Nome', parsedJson['name']],
+      parsedJson['release_date'] != null
+          ? ['Lançamento', parsedJson['release_date']]
+          : ['Nascimento', parsedJson['birthday']],
+      parsedJson['place_of_birth'] != null
+          ? ['Origem', parsedJson['place_of_birth']]
+          : ['Idioma', parsedJson['original_language']]
+    ];
+    if(parsedJson.containsKey('vote_average')){
+      lista.add(['Nota IMDB', parsedJson['vote_average']]);
+    }
+    return Detalhes(linhas: lista);
+  }
+
+  List<Widget> obterDetalhes() {
+    return List.generate(linhas.length, (index) {
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: <Widget>[
+          Text(
+            linhas[index][0],
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          Flexible(child: Text(linhas[index][1].toString()))
+        ],
+      );
+    });
   }
 }
 
@@ -361,11 +380,7 @@ Widget obterDescricao(Map<String, dynamic> obj) {
     titulo = 'Biografia';
     conteudo = obj['biography'];
   }
-  print('DEBUG: CONTEUDO');
-  print(conteudo);
-  print('FIM DEBUG');
-  conteudo = conteudo ?? 'Não há';
-
+  
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: <Widget>[
