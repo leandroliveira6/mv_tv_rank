@@ -42,7 +42,6 @@ class Configuracao {
 void main() => runApp(MyApp());
 
 class MyApp extends StatelessWidget {
-  
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -167,7 +166,6 @@ class _ListaState extends State<Lista> {
     print('Resposta: ' + response.statusCode.toString());
 
     if (response.statusCode == 200) {
-      print(json.decode(response.body));
       lista = json.decode(response.body)['results'] ??
           json.decode(response.body)['cast'] ??
           List();
@@ -175,12 +173,12 @@ class _ListaState extends State<Lista> {
       throw Exception('Falha ao obter a lista');
     }
 
-    print(lista);
-
-    setState(() {
-      estaCarregando = false;
-    });
-
+    //print(lista);
+    if (mounted) {
+      setState(() {
+        estaCarregando = false;
+      });
+    }
   }
 
   @override
@@ -200,7 +198,8 @@ class _ListaState extends State<Lista> {
                               onTap: () {
                                 Route route = MaterialPageRoute(
                                     builder: (context) => PaginaDetalhes(
-                                        tipo: lista[index]['media_type'] ?? widget._tipo,
+                                        tipo: lista[index]['media_type'] ??
+                                            widget._tipo,
                                         id: lista[index]['id'].toString()));
                                 Navigator.push(context, route);
                               },
@@ -245,6 +244,7 @@ class _PaginaDetalhesState extends State<PaginaDetalhes> {
   Map<String, dynamic> detalhes = Map();
   Map<String, String> camposDetalhes = {
     'title': 'Título',
+    'name': 'Nome',
     'release_date': 'Lançamento',
     'birthday': 'Nascimento',
     'place_of_birth': 'Origem',
@@ -273,12 +273,13 @@ class _PaginaDetalhesState extends State<PaginaDetalhes> {
     } else {
       throw Exception('Falha ao obter a lista');
     }
+    if (mounted) {
+      setState(() {
+        estaCarregando = false;
+      });
+    }
 
-    setState(() {
-      estaCarregando = false;
-    });
-
-    print(detalhes);
+    //print(detalhes);
   }
 
   @override
@@ -304,17 +305,23 @@ class _PaginaDetalhesState extends State<PaginaDetalhes> {
                                   List.generate(camposDetalhes.length, (index) {
                             String chave = camposDetalhes.keys.elementAt(index);
                             String valor = camposDetalhes[chave];
-                            return Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: <Widget>[
-                                Text(
-                                  valor,
-                                  style: TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                                Flexible(
-                                    child: Text(detalhes[chave].toString()))
-                              ],
-                            );
+                            print(valor);
+                            if (detalhes[chave] != null){
+                              return Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: <Widget>[
+                                  Text(
+                                    valor,
+                                    style:
+                                        TextStyle(fontWeight: FontWeight.bold),
+                                  ),
+                                  Flexible(
+                                      child: Text(detalhes[chave].toString()))
+                                ],
+                              );
+                            }
+                            return Text('');
                           })),
                         ),
                       ),
@@ -326,7 +333,9 @@ class _PaginaDetalhesState extends State<PaginaDetalhes> {
                         padding: const EdgeInsets.all(8.0),
                         child: obterDescricao(detalhes))),
                 Card(
-                    child: ContainerLista(widget.tipo == 'person' ? 'Trabalhos' : 'Elenco', obterTipoItemLista('detalhes', widget.tipo),
+                    child: ContainerLista(
+                        widget.tipo == 'person' ? 'Trabalhos' : 'Elenco',
+                        obterTipoItemLista('detalhes', widget.tipo),
                         id: detalhes['id'].toString()))
               ]));
   }
@@ -352,7 +361,9 @@ Widget obterDescricao(Map<String, dynamic> obj) {
     titulo = 'Biografia';
     conteudo = obj['biography'];
   }
+  print('DEBUG: CONTEUDO');
   print(conteudo);
+  print('FIM DEBUG');
   conteudo = conteudo ?? 'Não há';
 
   return Column(
