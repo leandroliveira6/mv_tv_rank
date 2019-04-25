@@ -2,19 +2,47 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart';
 
-final urlBase = 'https://api.themoviedb.org/3/';
-final urlImageBase = 'https://image.tmdb.org/t/p/';
-final parametroIdioma = 'language=pt-BR&';
-final parametroChave = 'api_key=3a06110bb4560d0e68265abfb5c87e5b&';
-final urlSubs = {
-  'filmes': 'trending/movie/week?',
-  'series': 'trending/tv/week?',
-  'pessoas': 'trending/person/week?',
-};
+class Configuracao {
+  static String obterUrlGeral() {
+    return 'https://api.themoviedb.org/3/';
+  }
+
+  static String obterUrlImagem() {
+    return 'https://image.tmdb.org/t/p/w500';
+  }
+
+  static String obterChave() {
+    return 'api_key=3a06110bb4560d0e68265abfb5c87e5b&';
+  }
+
+  static String obterIdioma() {
+    return 'language=pt-BR&';
+  }
+
+  static String obterSubUrlLista(String tipo) {
+    // movie, tv ou person
+    return 'trending/$tipo/week?';
+  }
+
+  static String obterSubUrlDetalhe(String tipo, String id) {
+    // movie, tv pu person
+    return '$tipo/$id?';
+  }
+
+  static String obterSubUrlElenco(String tipo, String id) {
+    // movie ou tv
+    return '$tipo/$id/credits?';
+  }
+
+  static String obterSubUrlHistorico(String id) {
+    return 'person/$id/combined_credits?';
+  }
+}
 
 void main() => runApp(MyApp());
 
 class MyApp extends StatelessWidget {
+  
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -38,12 +66,11 @@ class PaginaInicial extends StatelessWidget {
         title: Text('Os mais populares'),
       ),
       body: Container(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: ListView(
           children: <Widget>[
-            ContainerLista('Filmes', urlSubs['filmes']),
-            ContainerLista('Series', urlSubs['series']),
-            ContainerLista('Personalidades', urlSubs['pessoas'])
+            ContainerLista('Filmes', 'movie'),
+            ContainerLista('Series', 'tv'),
+            ContainerLista('Personalidades', 'person')
           ],
         ),
       ),
@@ -56,43 +83,193 @@ class PaginaInicial extends StatelessWidget {
   }
 }
 
-class ContainerLista extends StatefulWidget {
+class ContainerLista extends StatelessWidget {
   String _titulo;
-  String _urlSub;
-  bool _ehMisturada;
+  String _subUrl;
+  String _tipo;
+  bool _ehMisturada = false;
 
-  ContainerLista(String titulo, String urlSub, {bool ehMisturada}) {
+  ContainerLista(String titulo, String tipo, {String id}) {
     this._titulo = titulo;
-    this._urlSub = urlSub;
-    this._ehMisturada = ehMisturada ?? false;
+    this._tipo = tipo;
+    switch (tipo) {
+      case 'movie_cast':
+        this._subUrl = Configuracao.obterSubUrlElenco('movie', id);
+        this._tipo = 'person';
+        break;
+      case 'tv_cast':
+        this._subUrl = Configuracao.obterSubUrlElenco('tv', id);
+        this._tipo = 'person';
+        break;
+      case 'person_works':
+        this._ehMisturada = true;
+        this._subUrl = Configuracao.obterSubUrlHistorico(id);
+        break;
+      default:
+        this._subUrl = Configuracao.obterSubUrlLista(tipo);
+        break;
+    }
   }
 
   @override
-  _ContainerListaState createState() => _ContainerListaState();
-}
-
-class Cartaz {
-  String id;
-  String title;
-  String release_date;
-
-  Cartaz(String id, String title, String release_date) {
-    this.id = id;
-    this.title = title;
-    this.release_date = release_date;
+  Widget build(BuildContext context) {
+    return Container(
+        height: 256,
+        child: Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Expanded(
+                    child: Text(_titulo,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                        )),
+                  ),
+                  Expanded(flex: 6, child: Lista(_subUrl, _tipo, _ehMisturada))
+                ])));
   }
 }
 
-class _ContainerListaState extends State<ContainerLista> {
-  List<dynamic> lista = List();
+class Lista extends StatefulWidget {
+  String _subUrl;
+  String _tipo;
+  bool _ehMisturada;
+
+  Lista(String urlSub, String tipo, bool ehMisturada) {
+    this._subUrl = urlSub;
+    this._tipo = tipo;
+    this._ehMisturada = ehMisturada;
+  }
+
+  @override
+  _ListaState createState() => _ListaState();
+}
+
+class _ListaState extends State<Lista> {
+  List<dynamic> lista;
   bool estaCarregando = true;
 
-  Future _obterListaOnline() async {
-    Response response =
-        await get(urlBase + widget._urlSub + parametroChave + parametroIdioma);
-    print(response.statusCode);
+  @override
+  void initState() {
+    _obterLista();
+    super.initState();
+  }
+
+  Future _obterLista() async {
+    String url = Configuracao.obterUrlGeral();
+    String chave = Configuracao.obterChave();
+    String idioma = Configuracao.obterIdioma();
+
+    Response response = await get(url + widget._subUrl + chave + idioma);
+    print('Pedido: ' + url + widget._subUrl + chave + idioma);
+    print('Resposta: ' + response.statusCode.toString());
+
     if (response.statusCode == 200) {
-      lista = json.decode(response.body)['results'];
+      print(json.decode(response.body));
+      lista = json.decode(response.body)['results'] ??
+          json.decode(response.body)['cast'] ??
+          List();
+    } else {
+      throw Exception('Falha ao obter a lista');
+    }
+
+    print(lista);
+
+    setState(() {
+      estaCarregando = false;
+    });
+
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+        child: estaCarregando
+            ? Center(child: CircularProgressIndicator())
+            : ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: lista.length,
+                    itemBuilder: (BuildContext context, int index) {
+                      return Padding(
+                        padding: const EdgeInsets.all(4.0),
+                        child: SizedBox(
+                            width: 200,
+                            child: GestureDetector(
+                              onTap: () {
+                                Route route = MaterialPageRoute(
+                                    builder: (context) => PaginaDetalhes(
+                                        tipo: lista[index]['media_type'] ?? widget._tipo,
+                                        id: lista[index]['id'].toString()));
+                                Navigator.push(context, route);
+                              },
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: <Widget>[
+                                  obterImagem(lista[index]),
+                                  Container(
+                                    alignment: Alignment.bottomLeft,
+                                    child: Container(
+                                      color: Colors.black.withOpacity(0.4),
+                                      child: ListTile(
+                                        title: Text(
+                                            lista[index]['title'] ??
+                                                lista[index]['name'],
+                                            style: TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.bold)),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )),
+                      );
+                    }) ??
+                Text('Lista vazia'));
+  }
+}
+
+class PaginaDetalhes extends StatefulWidget {
+  final String id;
+  final String tipo;
+
+  PaginaDetalhes({@required this.tipo, @required this.id});
+
+  _PaginaDetalhesState createState() => _PaginaDetalhesState();
+}
+
+class _PaginaDetalhesState extends State<PaginaDetalhes> {
+  Map<String, dynamic> detalhes = Map();
+  Map<String, String> camposDetalhes = {
+    'title': 'Título',
+    'release_date': 'Lançamento',
+    'birthday': 'Nascimento',
+    'place_of_birth': 'Origem',
+    'original_language': 'Idioma',
+    'vote_average': 'Nota IMDB',
+  };
+  bool estaCarregando = true;
+
+  initState() {
+    _obterDetalhes();
+    super.initState();
+  }
+
+  Future _obterDetalhes() async {
+    String url = Configuracao.obterUrlGeral();
+    String subUrl = Configuracao.obterSubUrlDetalhe(widget.tipo, widget.id);
+    String chave = Configuracao.obterChave();
+    String idioma = Configuracao.obterIdioma();
+
+    print(url + subUrl + chave + idioma);
+
+    Response response = await get(url + subUrl + chave + idioma);
+
+    if (response.statusCode == 200) {
+      detalhes = json.decode(response.body);
     } else {
       throw Exception('Falha ao obter a lista');
     }
@@ -100,70 +277,114 @@ class _ContainerListaState extends State<ContainerLista> {
     setState(() {
       estaCarregando = false;
     });
-    print(lista);
-  }
 
-  @override
-  void initState() {
-    _obterListaOnline();
-    super.initState();
+    print(detalhes);
   }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 200,
-      child: Padding(
-        padding: const EdgeInsets.all(8.0),
-        child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text(widget._titulo,
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
-                  )),
-              estaCarregando
-                  ? Center(child: CircularProgressIndicator())
-                  : Expanded(
-                      child: ListView.builder(
-                          scrollDirection: Axis.horizontal,
-                          itemCount: lista.length,
-                          itemBuilder: (BuildContext context, int index) {
-                            return Padding(
-                              padding: const EdgeInsets.all(4.0),
-                              child: SizedBox(
-                                width: 200,
-                                child: Stack(
-                                  fit: StackFit.expand,
-                                  children: <Widget>[
-                                    Image.network(
-                                        urlImageBase +
-                                            'w500' +
-                                            (lista[index]['backdrop_path'] ??
-                                                lista[index]['profile_path']),
-                                        fit: BoxFit.cover),
-                                    Container(
-                                      alignment: Alignment.bottomLeft,
-                                      child: Container(
-                                        padding: EdgeInsets.all(8),
-                                        color: Colors.black.withOpacity(0.4),
-                                        child: Text(
-                                            lista[index]['title'] ??
-                                                lista[index]['name'],
-                                            style: TextStyle(
-                                                color: Colors.white,
-                                                fontWeight: FontWeight.bold)),
-                                      ),
-                                    ),
-                                  ],
+    return Scaffold(
+        appBar: AppBar(
+          title: Text('Detalhes'),
+        ),
+        body: estaCarregando
+            ? Center(child: CircularProgressIndicator())
+            : ListView(children: <Widget>[
+                Card(
+                    child: Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Row(
+                    children: <Widget>[
+                      Expanded(child: obterImagem(detalhes)),
+                      Expanded(
+                        child: Padding(
+                          padding: EdgeInsets.all(8.0),
+                          child: Column(
+                              children:
+                                  List.generate(camposDetalhes.length, (index) {
+                            String chave = camposDetalhes.keys.elementAt(index);
+                            String valor = camposDetalhes[chave];
+                            return Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: <Widget>[
+                                Text(
+                                  valor,
+                                  style: TextStyle(fontWeight: FontWeight.bold),
                                 ),
-                              ),
+                                Flexible(
+                                    child: Text(detalhes[chave].toString()))
+                              ],
                             );
-                          }),
-                    )
-            ]),
-      ),
-    );
+                          })),
+                        ),
+                      ),
+                    ],
+                  ),
+                )),
+                Card(
+                    child: Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: obterDescricao(detalhes))),
+                Card(
+                    child: ContainerLista(widget.tipo == 'person' ? 'Trabalhos' : 'Elenco', obterTipoItemLista('detalhes', widget.tipo),
+                        id: detalhes['id'].toString()))
+              ]));
   }
+}
+
+String obterTipoItemLista(String pagina, String tipo) {
+  if (pagina == 'detalhes') {
+    if (tipo == 'movie') {
+      return 'movie_cast';
+    } else if (tipo == 'tv') {
+      return 'tv_cast';
+    }
+    return 'person_works';
+  }
+  return tipo;
+}
+
+Widget obterDescricao(Map<String, dynamic> obj) {
+  String titulo = 'Sinopse';
+  String conteudo = obj['overview'];
+
+  if (obj.containsKey('biography')) {
+    titulo = 'Biografia';
+    conteudo = obj['biography'];
+  }
+  print(conteudo);
+  conteudo = conteudo ?? 'Não há';
+
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: <Widget>[
+      Text(titulo,
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+          )),
+      Padding(
+        padding: const EdgeInsets.all(4.0),
+        child: Text(conteudo, textAlign: TextAlign.justify),
+      )
+    ],
+  );
+}
+
+Widget obterImagem(Map<String, dynamic> obj) {
+  String nomeImagem = '';
+  if (obj.containsKey('poster_path')) {
+    nomeImagem = obj['poster_path'];
+  } else if (obj.containsKey('backdrop_path')) {
+    nomeImagem = obj['backdrop_path'];
+  } else if (obj.containsKey('profile_path')) {
+    nomeImagem = obj['profile_path'];
+  }
+
+  if (nomeImagem == null) {
+    return Image.asset('assets/imagens/sem-foto.jpg', fit: BoxFit.cover);
+  }
+
+  return Image.network(Configuracao.obterUrlImagem() + nomeImagem,
+      fit: BoxFit.cover);
 }
